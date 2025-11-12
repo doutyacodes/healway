@@ -1,4 +1,8 @@
+// ============================================
 // FILE: middleware.js
+// DESCRIPTION: Global middleware for route protection and RBAC
+// ============================================
+
 import { NextResponse } from "next/server";
 import { verifyToken } from "./lib/auth";
 
@@ -13,7 +17,7 @@ export async function middleware(request) {
     "/api/auth/verify-otp",
   ];
 
-  // ✅ Allow all mobile-api routes (for mobile app)
+  // ✅ Allow all mobile API routes (for mobile app usage)
   if (
     pathname.startsWith("/api/mobile-api/") ||
     publicRoutes.some((route) => pathname.startsWith(route))
@@ -21,19 +25,20 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // 🔒 Check for auth token for protected routes
+  // 🔒 Get authentication token from cookies
   const token = request.cookies.get("healway-auth-token")?.value;
 
+  // ❌ If token is missing → redirect to login
   if (!token) {
-    // Redirect unauthenticated requests to /login
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
   try {
-    // ✅ Verify token validity
+    // ✅ Verify and decode the token
     const user = await verifyToken(token);
 
-    // 🧠 Role-based access control
+    // 🧠 Role-based Access Control (RBAC)
+    // Restrict access to dashboards or sections by user type/role
     if (pathname.startsWith("/admin") && user.type !== "admin") {
       return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
@@ -50,31 +55,40 @@ export async function middleware(request) {
       return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
 
-    // 📨 Add user info to headers for downstream APIs
+    // 📨 Forward user info for serverless API routes
     const headers = new Headers(request.headers);
     headers.set("x-user-id", user.id.toString());
     headers.set("x-user-type", user.type);
     if (user.role) headers.set("x-user-role", user.role);
     if (user.hospitalId) headers.set("x-hospital-id", user.hospitalId.toString());
 
-    return NextResponse.next({ request: { headers } });
+    // ✅ Allow the request to continue
+    return NextResponse.next({
+      request: {
+        headers,
+      },
+    });
   } catch (error) {
-    console.error("Middleware auth error:", error);
-    // ❌ Invalid token: clear cookie and redirect
+    console.error("🔴 Middleware auth error:", error);
+
+    // ❌ Invalid token: clear cookie + redirect to login
     const response = NextResponse.redirect(new URL("/login", request.url));
     response.cookies.delete("healway-auth-token");
     return response;
   }
 }
 
+// ============================================
+// MIDDLEWARE CONFIGURATION
+// ============================================
 export const config = {
   matcher: [
     /*
      * Match all paths except:
      * - _next/static (static files)
      * - _next/image (image optimization)
-     * - favicon.ico (favicon)
-     * - and static image files in public directory
+     * - favicon.ico
+     * - image files in /public
      */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
