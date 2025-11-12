@@ -1,67 +1,100 @@
 // FILE: app/api/auth/verify-otp/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { users, otpVerifications } from "@/lib/db/schema";
+import { eq, and, isNull, gt, desc } from "drizzle-orm";
 import { verifyOTP, generateToken } from "@/lib/auth";
-
-// In-memory OTP store (shared with send-otp)
-// ⚠️ Use Redis in production for scalability
-const otpStore = new Map();
 
 export async function POST(request) {
   try {
     const body = await request.json();
     const { mobileNumber, otp } = body;
 
-    console.log("Verifying OTP for:", mobileNumber, otp);
     if (!mobileNumber || !otp) {
       return NextResponse.json(
         { success: false, error: "Mobile number and OTP are required" },
         { status: 400 }
       );
     }
-    console.log("Verifying OTP for:", mobileNumber, otp);
 
-    // Check if OTP exists
-    const storedData = otpStore.get(mobileNumber);
+    const db = await getDb();
 
-    if (!storedData) {
+    // Find the most recent unverified OTP for this mobile number
+    const [storedOTP] = await db
+      .select()
+      .from(otpVerifications)
+      .where(
+        and(
+          eq(otpVerifications.mobileNumber, mobileNumber),
+          eq(otpVerifications.verified, false),
+          gt(otpVerifications.expiresAt, new Date())
+        )
+      )
+      .orderBy(desc(otpVerifications.createdAt))
+      .limit(1);
+
+    if (!storedOTP) {
       return NextResponse.json(
-        { success: false, error: "OTP not found or expired. Please request a new OTP." },
+        {
+          success: false,
+          error: "OTP not found or expired. Please request a new OTP.",
+        },
         { status: 400 }
       );
     }
-    console.log("Verifying OTP for:", mobileNumber, otp);
 
-    // Check if OTP is expired
-    if (Date.now() > storedData.expiresAt) {
-      otpStore.delete(mobileNumber);
+    // Check attempt count (max 5 attempts)
+    if (storedOTP.attemptCount >= 5) {
       return NextResponse.json(
-        { success: false, error: "OTP has expired. Please request a new one." },
-        { status: 400 }
+        {
+          success: false,
+          error: "Too many incorrect attempts. Please request a new OTP.",
+        },
+        { status: 429 }
       );
     }
-    console.log("Verifying OTP for:", mobileNumber, otp);
 
+    console.log("Stored OTP:", storedOTP);
+    console.log("Stored OTP2 :", otp);
     // Verify OTP
-    const isValid = await verifyOTP(otp, storedData.otp);
+    const isValid = String(otp).trim() === String(storedOTP?.otp);
 
     if (!isValid) {
+      // Increment attempt count
+      await db
+        .update(otpVerifications)
+        .set({
+          attemptCount: storedOTP.attemptCount + 1,
+        })
+        .where(eq(otpVerifications.id, storedOTP.id));
+
       return NextResponse.json(
-        { success: false, error: "Invalid OTP. Please check and try again." },
+        {
+          success: false,
+          error: `Invalid OTP. ${
+            5 - storedOTP.attemptCount - 1
+          } attempts remaining.`,
+        },
         { status: 400 }
       );
     }
 
+    // Mark OTP as verified
+    await db
+      .update(otpVerifications)
+      .set({
+        verified: true,
+      })
+      .where(eq(otpVerifications.id, storedOTP.id));
+
     // Get user details
-    const db = await getDb();
     const [user] = await db
       .select()
       .from(users)
       .where(
         and(
-          eq(users.id, storedData.userId),
+          eq(users.mobileNumber, mobileNumber),
+          eq(users.otpLoginEnabled, true),
           isNull(users.deletedAt)
         )
       )
@@ -73,9 +106,6 @@ export async function POST(request) {
         { status: 404 }
       );
     }
-
-    // Clear OTP from store
-    otpStore.delete(mobileNumber);
 
     // Generate JWT token using jose
     const token = await generateToken({
@@ -119,6 +149,3 @@ export async function POST(request) {
     );
   }
 }
-
-// Export the OTP store to share with send-otp
-export { otpStore };

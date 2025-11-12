@@ -29,6 +29,15 @@ export default function UserLoginPage() {
   const [generatedOTP, setGeneratedOTP] = useState(""); // For testing
   const [expiresIn, setExpiresIn] = useState(300);
   const [canResend, setCanResend] = useState(false);
+  useEffect(() => {
+    if (otp.length === 6 && expiresIn > 0) {
+      // Automatically trigger verify once state is updated
+      const timer = setTimeout(() => {
+        handleVerifyOTP({ preventDefault: () => {} });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [otp, expiresIn]);
 
   // Timer for OTP expiry
   useEffect(() => {
@@ -149,19 +158,6 @@ export default function UserLoginPage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleOTPInput = (value) => {
-    const cleanValue = value.replace(/\D/g, "").slice(0, 6);
-    setOtp(cleanValue);
-
-    // Auto-submit when 6 digits entered
-    if (cleanValue.length === 6 && expiresIn > 0) {
-      // Small delay for better UX
-      setTimeout(() => {
-        handleVerifyOTP({ preventDefault: () => {} });
-      }, 300);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <Toaster position="top-right" />
@@ -204,8 +200,8 @@ export default function UserLoginPage() {
               <CheckCircle className="w-5 h-5 text-white" />
             </motion.div>
           </motion.div>
-          
-          <motion.h1 
+
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -213,13 +209,15 @@ export default function UserLoginPage() {
           >
             HealWay
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
             className="text-slate-600 text-lg"
           >
-            {step === 1 ? "Welcome! Please login to continue" : "Verify your identity"}
+            {step === 1
+              ? "Welcome! Please login to continue"
+              : "Verify your identity"}
           </motion.p>
         </div>
 
@@ -233,7 +231,7 @@ export default function UserLoginPage() {
             <div className="flex items-center justify-between relative">
               {/* Progress bar background */}
               <div className="absolute left-12 right-12 top-4 h-1 bg-blue-400/30 rounded-full"></div>
-              
+
               {/* Active progress bar */}
               <motion.div
                 initial={{ width: "0%" }}
@@ -247,14 +245,19 @@ export default function UserLoginPage() {
                 <motion.div
                   animate={{
                     scale: step >= 1 ? 1 : 0.8,
-                    backgroundColor: step >= 1 ? "#ffffff" : "rgba(255,255,255,0.2)",
+                    backgroundColor:
+                      step >= 1 ? "#ffffff" : "rgba(255,255,255,0.2)",
                   }}
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg`}
                 >
                   {step > 1 ? (
                     <CheckCircle className="w-6 h-6 text-blue-600" />
                   ) : (
-                    <Phone className={`w-5 h-5 ${step >= 1 ? "text-blue-600" : "text-white"}`} />
+                    <Phone
+                      className={`w-5 h-5 ${
+                        step >= 1 ? "text-blue-600" : "text-white"
+                      }`}
+                    />
                   )}
                 </motion.div>
                 <span className="text-white font-medium text-sm">Mobile</span>
@@ -265,11 +268,16 @@ export default function UserLoginPage() {
                 <motion.div
                   animate={{
                     scale: step >= 2 ? 1 : 0.8,
-                    backgroundColor: step >= 2 ? "#ffffff" : "rgba(255,255,255,0.2)",
+                    backgroundColor:
+                      step >= 2 ? "#ffffff" : "rgba(255,255,255,0.2)",
                   }}
                   className="w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg"
                 >
-                  <Shield className={`w-5 h-5 ${step >= 2 ? "text-blue-600" : "text-white"}`} />
+                  <Shield
+                    className={`w-5 h-5 ${
+                      step >= 2 ? "text-blue-600" : "text-white"
+                    }`}
+                  />
                 </motion.div>
                 <span className="text-white font-medium text-sm">Verify</span>
               </div>
@@ -359,7 +367,7 @@ export default function UserLoginPage() {
                           <p className="text-xs text-amber-800 mb-3">
                             OTP is displayed for testing (remove in production)
                           </p>
-                          <motion.div 
+                          <motion.div
                             initial={{ scale: 0.9 }}
                             animate={{ scale: 1 }}
                             className="bg-white rounded-xl px-6 py-4 border-2 border-amber-200 shadow-inner"
@@ -382,7 +390,20 @@ export default function UserLoginPage() {
                         type="text"
                         inputMode="numeric"
                         value={otp}
-                        onChange={(e) => handleOTPInput(e.target.value)}
+                        onChange={(e) => {
+                          // Only allow digits
+                          const value = e.target.value
+                            .replace(/\D/g, "")
+                            .slice(0, 6);
+                          setOtp(value);
+
+                          // Auto-submit once 6 digits are entered
+                          if (value.length === 6 && expiresIn > 0) {
+                            setTimeout(() => {
+                              handleVerifyOTP({ preventDefault: () => {} });
+                            }, 300);
+                          }
+                        }}
                         className="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-4 py-5 text-slate-900 text-center text-3xl tracking-[0.5em] font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="●●●●●●"
                         maxLength={6}
@@ -391,7 +412,10 @@ export default function UserLoginPage() {
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-3 text-center">
-                      Sent to <span className="font-semibold text-slate-700">{mobileNumber}</span>
+                      Sent to{" "}
+                      <span className="font-semibold text-slate-700">
+                        {mobileNumber}
+                      </span>
                     </p>
                   </div>
 
@@ -422,7 +446,9 @@ export default function UserLoginPage() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="submit"
-                      disabled={loading || !otp || otp.length !== 6 || expiresIn === 0}
+                      disabled={
+                        loading || !otp || otp.length !== 6 || expiresIn === 0
+                      }
                       className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4 rounded-xl font-semibold text-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {loading ? (
@@ -478,7 +504,7 @@ export default function UserLoginPage() {
             <ChevronLeft className="w-4 h-4" />
             Back to main login
           </Link>
-          
+
           <div className="text-xs text-slate-500">
             <p>By logging in, you agree to our</p>
             <a href="#" className="text-blue-600 hover:text-blue-700 underline">
