@@ -183,7 +183,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white border border-slate-300 rounded-xl pl-12 pr-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="admin@gatewise.com"
+                  placeholder="admin@healway.com"
                   required
                   autoComplete="email"
                 />
@@ -294,7 +294,7 @@ export default function LoginPage() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
         >
-          © 2025 GateWise. All rights reserved.
+          © 2025 HealWay. All rights reserved.
         </motion.p>
       </motion.div>
     </div>
