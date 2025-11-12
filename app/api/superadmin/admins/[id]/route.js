@@ -11,7 +11,9 @@ export const GET = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const adminId = parseInt(context.params.id);
+                  const { id } = await context.params;
+
+      const adminId = parseInt(id);
 
       const [admin] = await db
         .select({
@@ -62,7 +64,9 @@ export const PUT = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const adminId = parseInt(context.params.id);
+                  const { id } = await context.params;
+
+      const adminId = parseInt(id);
       const body = await request.json();
 
       // Check if admin exists
@@ -197,7 +201,9 @@ export const DELETE = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const adminId = parseInt(context.params.id);
+                  const { id } = await context.params;
+
+      const adminId = parseInt(id);
 
       // Check if admin exists
       const [existingAdmin] = await db
