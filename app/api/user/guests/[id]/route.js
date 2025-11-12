@@ -10,7 +10,7 @@ export const GET = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(context.params.id);
+      const guestId = parseInt(await context.params.id);
 
       const [guest] = await db
         .select({
@@ -67,7 +67,7 @@ export const PUT = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(context.params.id);
+      const guestId = parseInt(await context.params.id);
       const body = await request.json();
 
       // Check if guest exists and belongs to user
@@ -156,7 +156,7 @@ export const DELETE = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(context.params.id);
+      const guestId = parseInt(await context.params.id);
 
       // Check if guest exists and belongs to user
       const [existingGuest] = await db
