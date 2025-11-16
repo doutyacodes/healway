@@ -1,4 +1,6 @@
 // FILE: app/api/admin/nurses/route.js
+// Update the GET endpoint to include section information
+
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { nurses, nursingSections } from "@/lib/db/schema";
@@ -6,7 +8,58 @@ import { eq, and, isNull } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 import bcrypt from "bcryptjs";
 
-// POST create nurse
+// GET all nurses for admin's hospital
+export const GET = withAuth(
+  async (request, context, user) => {
+    try {
+      const db = await getDb();
+
+      if (!user.hospitalId) {
+        return NextResponse.json(
+          { success: false, error: "No hospital associated with this admin" },
+          { status: 404 }
+        );
+      }
+
+      const nursesList = await db
+        .select({
+          id: nurses.id,
+          name: nurses.name,
+          email: nurses.email,
+          mobileNumber: nurses.mobileNumber,
+          employeeId: nurses.employeeId,
+          shiftTiming: nurses.shiftTiming,
+          sectionId: nurses.sectionId,
+          sectionName: nursingSections.sectionName,
+          isActive: nurses.isActive,
+          createdAt: nurses.createdAt,
+        })
+        .from(nurses)
+        .leftJoin(nursingSections, eq(nurses.sectionId, nursingSections.id))
+        .where(
+          and(
+            eq(nurses.hospitalId, user.hospitalId),
+            isNull(nurses.deletedAt)
+          )
+        )
+        .orderBy(nurses.name);
+
+      return NextResponse.json({
+        success: true,
+        nurses: nursesList,
+        count: nursesList.length,
+      });
+    } catch (error) {
+      console.error("Error fetching nurses:", error);
+      return NextResponse.json(
+        { success: false, error: "Failed to fetch nurses" },
+        { status: 500 }
+      );
+    }
+  },
+  { allowedTypes: ["admin"] }
+);
+
 export const POST = withAuth(
   async (request, context, user) => {
     try {

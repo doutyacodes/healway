@@ -1,20 +1,23 @@
-// FILE: app/api/admin/nursing-sections/[id]/toggle-status/route.js
+// FILE: app/api/admin/nursing-sections/[id]/rooms/[roomId]/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { nursingSections } from "@/lib/db/schema";
+import { nursingSectionRooms, nursingSections } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 
-// PATCH toggle section active status
-export const PATCH = withAuth(
+// DELETE remove room from section
+export const DELETE = withAuth(
   async (request, context, user) => {
     try {
             const {id} = parseInt(context.params)
       const sectionId = parseInt(id);
 
+      const { roomId } = await context.params;
+const parsedRoomId = parseInt(roomId);
+
       const db = await getDb();
 
-      // Get current section
+      // Verify section belongs to admin's hospital
       const [section] = await db
         .select()
         .from(nursingSections)
@@ -34,24 +37,24 @@ export const PATCH = withAuth(
         );
       }
 
-      // Toggle status
-      await db
-        .update(nursingSections)
-        .set({
-          isActive: !section.isActive,
-          updatedAt: new Date(),
-        })
-        .where(eq(nursingSections.id, sectionId));
+      // Remove assignment
+      const result = await db
+        .delete(nursingSectionRooms)
+        .where(
+          and(
+            eq(nursingSectionRooms.sectionId, sectionId),
+            eq(nursingSectionRooms.roomId, parsedRoomId)
+          )
+        );
 
       return NextResponse.json({
         success: true,
-        message: `Section ${section.isActive ? "deactivated" : "activated"} successfully`,
-        isActive: !section.isActive,
+        message: "Room removed from section successfully",
       });
     } catch (error) {
-      console.error("Error toggling section status:", error);
+      console.error("Error removing room from section:", error);
       return NextResponse.json(
-        { success: false, error: "Failed to update section status" },
+        { success: false, error: "Failed to remove room from section" },
         { status: 500 }
       );
     }

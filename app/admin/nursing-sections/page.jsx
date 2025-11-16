@@ -19,8 +19,10 @@ import {
   Info,
   Filter,
   Users,
+  Bed,
 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
+import Link from "next/link";
 
 export default function NursingSectionsPage() {
   const [sections, setSections] = useState([]);
@@ -493,11 +495,26 @@ function SectionCard({ section, index, onEdit, onDelete, onToggleStatus }) {
         </p>
       )}
 
-      {/* Nurse Count */}
-      <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
-        <Users className="w-4 h-4" />
-        <span>{section.nurseCount || 0} Nurses</span>
+      {/* Counts */}
+      <div className="flex items-center gap-4 text-sm text-slate-600 mb-4 pb-4 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          <span>{section.nurseCount || 0} Nurses</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Bed className="w-4 h-4" />
+          <span>{section.roomCount || 0} Rooms</span>
+        </div>
       </div>
+
+      {/* Manage Rooms Link */}
+      <Link
+        href={`/admin/nursing-sections/${section.id}/rooms`}
+        className="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 px-4 py-2 rounded-lg text-sm font-semibold hover:from-blue-100 hover:to-indigo-100 transition-all mb-3"
+      >
+        <Bed className="w-4 h-4" />
+        Manage Rooms
+      </Link>
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-3">

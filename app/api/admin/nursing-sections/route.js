@@ -1,8 +1,8 @@
 // FILE: app/api/admin/nursing-sections/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { nursingSections, hospitalWings } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { nursingSections, hospitalWings, nursingSectionRooms, nurses } from "@/lib/db/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 
 // GET all nursing sections for admin's hospital
@@ -18,14 +18,17 @@ export const GET = withAuth(
         );
       }
 
+      // Get sections with wing info and counts
       const sections = await db
         .select({
           id: nursingSections.id,
           sectionName: nursingSections.sectionName,
           wingId: nursingSections.wingId,
           wingName: hospitalWings.wingName,
+          description: nursingSections.description,
+          isActive: nursingSections.isActive,
           createdAt: nursingSections.createdAt,
-          isActive:nursingSections.isActive
+          updatedAt: nursingSections.updatedAt,
         })
         .from(nursingSections)
         .leftJoin(hospitalWings, eq(nursingSections.wingId, hospitalWings.id))
@@ -37,10 +40,38 @@ export const GET = withAuth(
         )
         .orderBy(nursingSections.sectionName);
 
+      // Get counts for each section
+      const sectionsWithCounts = await Promise.all(
+        sections.map(async (section) => {
+          // Get nurse count
+          const [nurseCount] = await db
+            .select({ count: sql`count(*)` })
+            .from(nurses)
+            .where(
+              and(
+                eq(nurses.sectionId, section.id),
+                isNull(nurses.deletedAt)
+              )
+            );
+
+          // Get room count
+          const [roomCount] = await db
+            .select({ count: sql`count(*)` })
+            .from(nursingSectionRooms)
+            .where(eq(nursingSectionRooms.sectionId, section.id));
+
+          return {
+            ...section,
+            nurseCount: Number(nurseCount.count) || 0,
+            roomCount: Number(roomCount.count) || 0,
+          };
+        })
+      );
+
       return NextResponse.json({
         success: true,
-        sections,
-        count: sections.length,
+        sections: sectionsWithCounts,
+        count: sectionsWithCounts.length,
       });
     } catch (error) {
       console.error("Error fetching nursing sections:", error);
@@ -67,39 +98,43 @@ export const POST = withAuth(
         );
       }
 
-      if (!body.sectionName || !body.wingId) {
+      if (!body.sectionName) {
         return NextResponse.json(
-          { success: false, error: "Section name and wing are required" },
+          { success: false, error: "Section name is required" },
           { status: 400 }
         );
       }
 
-      // Verify wing belongs to hospital
-      const [wing] = await db
-        .select()
-        .from(hospitalWings)
-        .where(
-          and(
-            eq(hospitalWings.id, body.wingId),
-            eq(hospitalWings.hospitalId, user.hospitalId),
-            isNull(hospitalWings.deletedAt)
+      // If wingId is provided, verify it belongs to hospital
+      if (body.wingId) {
+        const [wing] = await db
+          .select()
+          .from(hospitalWings)
+          .where(
+            and(
+              eq(hospitalWings.id, body.wingId),
+              eq(hospitalWings.hospitalId, user.hospitalId),
+              isNull(hospitalWings.deletedAt)
+            )
           )
-        )
-        .limit(1);
+          .limit(1);
 
-      if (!wing) {
-        return NextResponse.json(
-          { success: false, error: "Wing not found" },
-          { status: 404 }
-        );
+        if (!wing) {
+          return NextResponse.json(
+            { success: false, error: "Wing not found" },
+            { status: 404 }
+          );
+        }
       }
 
       const [newSection] = await db
         .insert(nursingSections)
         .values({
           hospitalId: user.hospitalId,
-          wingId: body.wingId,
+          wingId: body.wingId || null,
           sectionName: body.sectionName,
+          description: body.description || null,
+          isActive: true,
         });
 
       return NextResponse.json({

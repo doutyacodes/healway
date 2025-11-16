@@ -1,29 +1,30 @@
 // FILE: app/api/admin/nursing-sections/[id]/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { nursingSections, hospitalWings } from "@/lib/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { nursingSections, hospitalWings, nurses } from "@/lib/db/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 
 // GET single nursing section
 export const GET = withAuth(
   async (request, context, user) => {
     try {
-      const db = await getDb();
-      const { id } = await context.params;
-
+      const {id} = await context.params
       const sectionId = parseInt(id);
-
-      if (!user.hospitalId) {
-        return NextResponse.json(
-          { success: false, error: "No hospital associated with this admin" },
-          { status: 404 }
-        );
-      }
+      const db = await getDb();
 
       const [section] = await db
-        .select()
+        .select({
+          id: nursingSections.id,
+          sectionName: nursingSections.sectionName,
+          wingId: nursingSections.wingId,
+          wingName: hospitalWings.wingName,
+          description: nursingSections.description,
+          isActive: nursingSections.isActive,
+          createdAt: nursingSections.createdAt,
+        })
         .from(nursingSections)
+        .leftJoin(hospitalWings, eq(nursingSections.wingId, hospitalWings.id))
         .where(
           and(
             eq(nursingSections.id, sectionId),
@@ -59,20 +60,13 @@ export const GET = withAuth(
 export const PUT = withAuth(
   async (request, context, user) => {
     try {
-      const db = await getDb();
-      const { id } = await context.params;
-
+            const {id} = await context.params
       const sectionId = parseInt(id);
+
       const body = await request.json();
+      const db = await getDb();
 
-      if (!user.hospitalId) {
-        return NextResponse.json(
-          { success: false, error: "No hospital associated with this admin" },
-          { status: 404 }
-        );
-      }
-
-      // Check if section exists
+      // Verify section exists and belongs to admin's hospital
       const [existingSection] = await db
         .select()
         .from(nursingSections)
@@ -92,7 +86,7 @@ export const PUT = withAuth(
         );
       }
 
-      // Verify wing if provided
+      // If wingId is provided, verify it
       if (body.wingId) {
         const [wing] = await db
           .select()
@@ -118,13 +112,9 @@ export const PUT = withAuth(
       await db
         .update(nursingSections)
         .set({
-          sectionName: body.sectionName || existingSection.sectionName,
-          wingId:
-            body.wingId !== undefined ? body.wingId : existingSection.wingId,
-          description:
-            body.description !== undefined
-              ? body.description
-              : existingSection.description,
+          sectionName: body.sectionName || undefined,
+          wingId: body.wingId !== undefined ? body.wingId : undefined,
+          description: body.description !== undefined ? body.description : undefined,
           updatedAt: new Date(),
         })
         .where(eq(nursingSections.id, sectionId));
@@ -148,19 +138,12 @@ export const PUT = withAuth(
 export const DELETE = withAuth(
   async (request, context, user) => {
     try {
-      const db = await getDb();
-      const { id } = await context.params;
-
+            const {id} = await context.params
       const sectionId = parseInt(id);
 
-      if (!user.hospitalId) {
-        return NextResponse.json(
-          { success: false, error: "No hospital associated with this admin" },
-          { status: 404 }
-        );
-      }
+      const db = await getDb();
 
-      // Check if section exists
+      // Verify section exists and belongs to admin's hospital
       const [existingSection] = await db
         .select()
         .from(nursingSections)
@@ -180,15 +163,40 @@ export const DELETE = withAuth(
         );
       }
 
-      // Soft delete
+      // Check if section has active nurses
+      const [nurseCount] = await db
+        .select({ count: sql`count(*)` })
+        .from(nurses)
+        .where(
+          and(
+            eq(nurses.sectionId, sectionId),
+            isNull(nurses.deletedAt)
+          )
+        );
+
+      if (Number(nurseCount.count) > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Cannot delete section with ${nurseCount.count} active nurse(s). Please reassign them first.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Soft delete section
       await db
         .update(nursingSections)
         .set({
           deletedAt: new Date(),
           isActive: false,
-          updatedAt: new Date(),
         })
         .where(eq(nursingSections.id, sectionId));
+
+      // Remove all room assignments
+      await db
+        .delete(nursingSectionRooms)
+        .where(eq(nursingSectionRooms.sectionId, sectionId));
 
       return NextResponse.json({
         success: true,
