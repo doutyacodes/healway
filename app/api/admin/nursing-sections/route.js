@@ -25,6 +25,7 @@ export const GET = withAuth(
           wingId: nursingSections.wingId,
           wingName: hospitalWings.wingName,
           createdAt: nursingSections.createdAt,
+          isActive:nursingSections.isActive
         })
         .from(nursingSections)
         .leftJoin(hospitalWings, eq(nursingSections.wingId, hospitalWings.id))
