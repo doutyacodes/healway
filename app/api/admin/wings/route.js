@@ -18,7 +18,7 @@ export const GET = withAuth(
         );
       }
 
-      // Fetch wings with room counts and visiting hours
+      // Fetch wings
       const wings = await db
         .select({
           id: hospitalWings.id,
@@ -38,8 +38,18 @@ export const GET = withAuth(
         )
         .orderBy(hospitalWings.createdAt);
 
-      // Fetch room counts for each wing
       const wingIds = wings.map(w => w.id);
+
+      // FIX: If no wings exist, return empty arrays
+      if (wingIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          wings: [],
+          count: 0,
+        });
+      }
+
+      // Fetch room counts
       const roomCounts = await db
         .select({
           wingId: rooms.wingId,
@@ -54,7 +64,7 @@ export const GET = withAuth(
         )
         .groupBy(rooms.wingId);
 
-      // Fetch visiting hours for each wing
+      // Fetch visiting hours
       const visitingHoursList = await db
         .select()
         .from(visitingHours)
@@ -95,6 +105,7 @@ export const GET = withAuth(
   },
   { allowedTypes: ["admin"] }
 );
+
 
 // POST create new wing
 export const POST = withAuth(

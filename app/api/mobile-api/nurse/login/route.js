@@ -1,14 +1,14 @@
 // FILE: app/api/mobile-api/nurse/login/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { nurses } from "@/lib/db/schema";
+import { nurses, deviceTokens } from "@/lib/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { comparePassword, generateToken } from "@/lib/auth";
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email, password } = body;
+    const { email, password, device_token, platform, device_model } = body;
 
     // Validation
     if (!email || !password) {
@@ -24,12 +24,7 @@ export async function POST(request) {
     const [nurse] = await db
       .select()
       .from(nurses)
-      .where(
-        and(
-          eq(nurses.email, email),
-          isNull(nurses.deletedAt)
-        )
-      )
+      .where(and(eq(nurses.email, email), isNull(nurses.deletedAt)))
       .limit(1);
 
     if (!nurse) {
@@ -66,6 +61,26 @@ export async function POST(request) {
       email: nurse.email,
       name: nurse.name,
     });
+
+    // ⭐ Save device token if provided
+    if (device_token) {
+      // Check if this token already exists
+      const existingToken = await db
+        .select()
+        .from(deviceTokens)
+        .where(eq(deviceTokens.deviceToken, device_token))
+        .limit(1);
+
+      if (existingToken.length === 0) {
+        // Insert new token
+        await db.insert(deviceTokens).values({
+          userId: nurse.id,
+          deviceToken: device_token,
+          platform: platform || null,
+          deviceModel: device_model || null,
+        });
+      }
+    }
 
     // Return success response
     return NextResponse.json({
