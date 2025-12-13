@@ -495,12 +495,24 @@ function HospitalModal({
   onClose,
   loading,
 }) {
-  const handleChange = (e) => {
+ // In the HospitalModal component, update the handleChange function:
+
+const handleChange = (e) => {
+  const { name, value } = e.target;
+  
+  // Remove spaces from phone and pincode fields
+  if (name === 'contactPhone' || name === 'pincode') {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value.replace(/\s/g, ''),
     });
-  };
+  } else {
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  }
+};
 
   return (
     <motion.div

@@ -9,17 +9,29 @@ import { withAuth } from "@/lib/api-helpers";
 export const DELETE = withAuth(
   async (request, context, user) => {
     try {
-      const {sessionId} = await context.params;
-      const nurseId = parseInt(context.params.nurseId);
+      const { sessionId, nurseId } = await context.params;
+
+      const parsedSessionId = Number(sessionId);
+      const parsedNurseId = Number(nurseId);
+
+      if (
+        Number.isNaN(parsedSessionId) ||
+        Number.isNaN(parsedNurseId)
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Invalid sessionId or nurseId" },
+          { status: 400 }
+        );
+      }
+
       const db = await getDb();
 
-      // Verify session belongs to admin's hospital
       const [session] = await db
         .select()
         .from(patientSessions)
         .where(
           and(
-            eq(patientSessions.id, sessionId),
+            eq(patientSessions.id, parsedSessionId),
             eq(patientSessions.hospitalId, user.hospitalId)
           )
         )
@@ -32,7 +44,6 @@ export const DELETE = withAuth(
         );
       }
 
-      // Update assignment to inactive
       await db
         .update(nursePatientAssignments)
         .set({
@@ -41,8 +52,8 @@ export const DELETE = withAuth(
         })
         .where(
           and(
-            eq(nursePatientAssignments.nurseId, nurseId),
-            eq(nursePatientAssignments.sessionId, sessionId),
+            eq(nursePatientAssignments.nurseId, parsedNurseId),
+            eq(nursePatientAssignments.sessionId, parsedSessionId),
             eq(nursePatientAssignments.isActive, true)
           )
         );
