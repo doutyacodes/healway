@@ -18,7 +18,58 @@ export const POST = withAuth(
   async (request, context, security) => {
     try {
       const body = await request.json();
+      console.log("Received QR verification request:", body);
       const { qrCode, qrData } = body;
+
+      // ---- NORMALIZE QR CODE (frontend-agnostic) ----
+      let qrCodeToVerify = null;
+
+      // Case 1: qrData exists
+      if (qrData) {
+        try {
+          const parsed =
+            typeof qrData === "string" ? JSON.parse(qrData) : qrData;
+          qrCodeToVerify = parsed?.qrCode ?? null;
+        } catch {
+          return NextResponse.json(
+            { success: false, error: "Invalid QR data format" },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Case 2: qrCode exists
+      if (!qrCodeToVerify && qrCode) {
+        // If qrCode is already a string QR
+        if (typeof qrCode === "string") {
+          // If it's JSON string, parse it
+          if (qrCode.trim().startsWith("{")) {
+            try {
+              const parsed = JSON.parse(qrCode);
+              qrCodeToVerify = parsed?.qrCode ?? null;
+            } catch {
+              return NextResponse.json(
+                { success: false, error: "Invalid QR code format" },
+                { status: 400 }
+              );
+            }
+          } else {
+            qrCodeToVerify = qrCode;
+          }
+        }
+
+        // If qrCode is an object
+        if (typeof qrCode === "object") {
+          qrCodeToVerify = qrCode.qrCode ?? null;
+        }
+      }
+
+      if (!qrCodeToVerify) {
+        return NextResponse.json(
+          { success: false, error: "QR code not found in request" },
+          { status: 400 }
+        );
+      }
 
       if (!qrCode && !qrData) {
         return NextResponse.json(
@@ -34,7 +85,8 @@ export const POST = withAuth(
       let parsedQrData;
       if (qrData) {
         try {
-          parsedQrData = typeof qrData === "string" ? JSON.parse(qrData) : qrData;
+          parsedQrData =
+            typeof qrData === "string" ? JSON.parse(qrData) : qrData;
         } catch (error) {
           return NextResponse.json(
             { success: false, error: "Invalid QR data format" },
@@ -43,7 +95,6 @@ export const POST = withAuth(
         }
       }
 
-      const qrCodeToVerify = qrCode || parsedQrData?.qrCode;
 
       if (!qrCodeToVerify) {
         return NextResponse.json(
@@ -70,7 +121,7 @@ export const POST = withAuth(
           qrScanLimit: guests.qrScanLimit,
           qrScansUsed: guests.qrScansUsed,
           qrExpiresAt: guests.qrExpiresAt,
-          
+
           // Session info
           sessionId: patientSessions.id,
           sessionStatus: patientSessions.status,
@@ -78,12 +129,12 @@ export const POST = withAuth(
           sessionEndDate: patientSessions.endDate,
           wingId: patientSessions.wingId,
           roomId: patientSessions.roomId,
-          
+
           // Patient info
           patientUserId: users.id,
           patientName: users.name,
           patientMobile: users.mobileNumber,
-          
+
           // Location info
           wingName: hospitalWings.wingName,
           wingCode: hospitalWings.wingCode,
@@ -118,13 +169,14 @@ export const POST = withAuth(
       // Validation checks
       const validations = {
         isApproved: guestDetails.status === "approved",
-        isActive: guestDetails.status !== "revoked" && guestDetails.status !== "denied",
+        isActive:
+          guestDetails.status !== "revoked" && guestDetails.status !== "denied",
         isSessionActive: guestDetails.sessionStatus === "active",
         isWithinValidPeriod:
           new Date(guestDetails.validFrom) <= currentTime &&
           new Date(guestDetails.validUntil) >= currentTime,
-        isQrNotExpired: 
-          !guestDetails.qrExpiresAt || 
+        isQrNotExpired:
+          !guestDetails.qrExpiresAt ||
           new Date(guestDetails.qrExpiresAt) >= currentTime,
         hasScansRemaining:
           guestDetails.qrScanLimit === null ||
@@ -149,7 +201,7 @@ export const POST = withAuth(
       const currentDay = currentTime
         .toLocaleDateString("en-US", { weekday: "long" })
         .toLowerCase();
-      
+
       const currentHour = currentTime.getHours();
       const currentMinute = currentTime.getMinutes();
       const currentTimeInMinutes = currentHour * 60 + currentMinute;
@@ -175,10 +227,10 @@ export const POST = withAuth(
       const isWithinVisitingHours = visitingHoursList.some((hours) => {
         const [startHour, startMin] = hours.startTime.split(":").map(Number);
         const [endHour, endMin] = hours.endTime.split(":").map(Number);
-        
+
         const startTimeInMinutes = startHour * 60 + startMin;
         const endTimeInMinutes = endHour * 60 + endMin;
-        
+
         return (
           currentTimeInMinutes >= startTimeInMinutes &&
           currentTimeInMinutes <= endTimeInMinutes
@@ -210,8 +262,8 @@ export const POST = withAuth(
         denialReason = "Outside visiting hours";
       } else {
         accessGranted = true;
-        accessReason = isCurrentlyInside 
-          ? "Guest checkout - was inside" 
+        accessReason = isCurrentlyInside
+          ? "Guest checkout - was inside"
           : "Access granted - within visiting hours";
       }
 

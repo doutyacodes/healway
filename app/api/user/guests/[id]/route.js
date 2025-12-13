@@ -10,7 +10,15 @@ export const GET = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(await context.params.id);
+      const { id } = await context.params;
+      const guestId = Number(id);
+
+      if (!Number.isInteger(guestId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guest id" },
+          { status: 400 }
+        );
+      }
 
       const [guest] = await db
         .select({
@@ -67,7 +75,15 @@ export const PUT = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(await context.params.id);
+      const { id } = await context.params;
+      const guestId = Number(id);
+
+      if (!Number.isInteger(guestId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guest id" },
+          { status: 400 }
+        );
+      }
       const body = await request.json();
 
       // Check if guest exists and belongs to user
@@ -98,9 +114,15 @@ export const PUT = withAuth(
       }
 
       // Cannot edit if already expired or revoked
-      if (existingGuest.status === "expired" || existingGuest.status === "revoked") {
+      if (
+        existingGuest.status === "expired" ||
+        existingGuest.status === "revoked"
+      ) {
         return NextResponse.json(
-          { success: false, error: "Cannot edit expired or revoked guest pass" },
+          {
+            success: false,
+            error: "Cannot edit expired or revoked guest pass",
+          },
           { status: 400 }
         );
       }
@@ -109,7 +131,8 @@ export const PUT = withAuth(
       let updateData = {
         guestName: body.guestName || undefined,
         guestPhone: body.guestMobile || undefined,
-        relationshipToPatient: body.relationship !== undefined ? body.relationship : undefined,
+        relationshipToPatient:
+          body.relationship !== undefined ? body.relationship : undefined,
         guestType: body.visitType || undefined,
         purpose: body.purpose !== undefined ? body.purpose : undefined,
         updatedAt: new Date(),
@@ -122,7 +145,7 @@ export const PUT = withAuth(
           validFrom.setHours(0, 0, 0, 0);
           const validUntil = new Date(body.visitDate);
           validUntil.setHours(23, 59, 59, 999);
-          
+
           updateData.validFrom = validFrom;
           updateData.validUntil = validUntil;
           updateData.qrExpiresAt = validUntil;
@@ -131,10 +154,7 @@ export const PUT = withAuth(
       }
 
       // Update guest
-      await db
-        .update(guests)
-        .set(updateData)
-        .where(eq(guests.id, guestId));
+      await db.update(guests).set(updateData).where(eq(guests.id, guestId));
 
       return NextResponse.json({
         success: true,
@@ -156,7 +176,15 @@ export const DELETE = withAuth(
   async (request, context, user) => {
     try {
       const db = await getDb();
-      const guestId = parseInt(await context.params.id);
+      const { id } = await context.params;
+      const guestId = Number(id);
+
+      if (!Number.isInteger(guestId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guest id" },
+          { status: 400 }
+        );
+      }
 
       // Check if guest exists and belongs to user
       const [existingGuest] = await db
