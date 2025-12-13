@@ -122,7 +122,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: "OTP sent successfully",
-      otp: otp, // ⚠️ SHOWING IN PRODUCTION - REMOVE WHEN SMS IS INTEGRATED
+      otp: otp, // ⚠️ SHOWING IN PRODUCTION - REMOVE WHEN SMS IS INTEGRATED ToDO
       expiresIn: 300,
     });
 
