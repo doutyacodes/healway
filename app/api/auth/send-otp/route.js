@@ -100,12 +100,11 @@ export async function POST(request) {
                       request.headers.get("x-real-ip") || 
                       "unknown";
 
-    // Store OTP in database
+    // Store OTP in database (HASHED VERSION!)
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
     await db.insert(otpVerifications).values({
       mobileNumber,
-      otp: otp,
+      otp: hashedOTP, // ✅ Store hashed version
       expiresAt,
       verified: false,
       attemptCount: 0,
@@ -115,6 +114,7 @@ export async function POST(request) {
     // TODO: Send OTP via SMS service (Twilio, AWS SNS, etc.)
     // await sendSMS(mobileNumber, `Your HealWay OTP is: ${otp}`);
 
+    // Console logs (fixed syntax)
     console.log(`🔐 OTP for ${mobileNumber}: ${otp}`);
     console.log(`📱 User: ${user.name} (${user.role})`);
     console.log(`⏰ Expires at: ${expiresAt.toLocaleTimeString()}`);
@@ -122,11 +122,10 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: "OTP sent successfully",
-      // ⚠️ TESTING ONLY - Remove in production
-      // ...(process.env.NODE_ENV === "development" && { otp }),
-       otp ,
-      expiresIn: 300, // 5 minutes in seconds
+      otp: otp, // ⚠️ SHOWING IN PRODUCTION - REMOVE WHEN SMS IS INTEGRATED
+      expiresIn: 300,
     });
+
   } catch (error) {
     console.error("Error sending OTP:", error);
     return NextResponse.json(
