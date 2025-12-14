@@ -103,7 +103,7 @@ export async function POST(request) {
       success: true,
       message: "OTP sent successfully",
       // ⚠️ TESTING ONLY - Remove in production
-      ...(process.env.NODE_ENV === "development" && { otp }),
+       otp ,
       expiresIn: 300, // 5 minutes in seconds
     });
   } catch (error) {
