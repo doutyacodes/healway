@@ -37,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           success: false,
-          error: "OTP not found or expired. Please request a new OTP.",
+          error: "OTP not found or expired. Please request a new OTP for verification.",
         },
         { status: 400 }
       );
