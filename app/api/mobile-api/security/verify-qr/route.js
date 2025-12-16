@@ -80,7 +80,9 @@ export const POST = withAuth(
 
       const db = await getDb();
 // Add this at the beginning of your API route handler
-const currentTime = new Date();
+const currentTime = new Date(
+  new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+);
 
 console.log("Vercel Server Time:", {
   iso: currentTime.toISOString(),
