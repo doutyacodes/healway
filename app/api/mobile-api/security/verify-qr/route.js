@@ -13,6 +13,21 @@ import {
 import { eq, and, isNull, or } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 
+// Add this at the beginning of your API route handler
+const currentTime = new Date();
+
+console.log("Vercel Server Time:", {
+  iso: currentTime.toISOString(),
+  local: currentTime.toLocaleString(),
+  utc: currentTime.toUTCString(),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  timestamp: currentTime.getTime(),
+  date: currentTime.toLocaleDateString(),
+  time: currentTime.toLocaleTimeString(),
+  hours: currentTime.getHours(),
+  minutes: currentTime.getMinutes(),
+  seconds: currentTime.getSeconds()
+});
 // POST verify QR code
 export const POST = withAuth(
   async (request, context, security) => {
