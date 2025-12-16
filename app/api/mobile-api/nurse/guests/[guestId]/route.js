@@ -33,6 +33,12 @@ export const GET = withAuth(
         );
       }
 
+      console.log("Guest visiting hours:", {
+        visitingFrom: guest.visitingFrom,
+        visitingTo: guest.visitingTo,
+        guestId: guest.id
+      });
+
       // Verify nurse has access
       const [session] = await db
         .select({ roomId: patientSessions.roomId })
@@ -103,6 +109,12 @@ export const PUT = withAuth(
         );
       }
 
+      console.log("Current guest visiting hours:", {
+        visitingFrom: guest.visitingFrom,
+        visitingTo: guest.visitingTo,
+        guestId: guest.id
+      });
+
       const [session] = await db
         .select({ roomId: patientSessions.roomId })
         .from(patientSessions)
@@ -133,6 +145,8 @@ export const PUT = withAuth(
       if (body.isActive !== undefined) updates.isActive = body.isActive;
       if (body.notes) updates.purpose = body.notes;
       updates.updatedAt = new Date();
+
+      console.log("Updating guest with:", updates);
 
       await db.update(guests).set(updates).where(eq(guests.id, guestId));
 
