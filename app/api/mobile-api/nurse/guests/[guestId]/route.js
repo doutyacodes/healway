@@ -1,11 +1,7 @@
 // FILE: app/api/mobile-api/nurse/guests/[guestId]/route.js
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import {
-  guests,
-  patientSessions,
-  nursingSectionRooms,
-} from "@/lib/db/schema";
+import { guests, patientSessions, nursingSectionRooms } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
 
@@ -13,7 +9,15 @@ import { withAuth } from "@/lib/api-helpers";
 export const GET = withAuth(
   async (request, context, nurse) => {
     try {
-      const guestId = parseInt(context.params.guestId);
+      const { guestId } = context.params ?? {};
+      const parsedguestId = Number(guestId);
+
+      if (!Number.isInteger(parsedguestId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guestId" },
+          { status: 400 }
+        );
+      }
       const db = await getDb();
 
       const [guest] = await db
@@ -73,7 +77,15 @@ export const GET = withAuth(
 export const PUT = withAuth(
   async (request, context, nurse) => {
     try {
-      const guestId = parseInt(context.params.guestId);
+      const { guestId } = context.params ?? {};
+      const parsedguestId = Number(guestId);
+
+      if (!Number.isInteger(parsedguestId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid guestId" },
+          { status: 400 }
+        );
+      }
       const body = await request.json();
       const db = await getDb();
 
@@ -122,10 +134,7 @@ export const PUT = withAuth(
       if (body.notes) updates.purpose = body.notes;
       updates.updatedAt = new Date();
 
-      await db
-        .update(guests)
-        .set(updates)
-        .where(eq(guests.id, guestId));
+      await db.update(guests).set(updates).where(eq(guests.id, guestId));
 
       return NextResponse.json({
         success: true,

@@ -17,7 +17,16 @@ import { withAuth } from "@/lib/api-helpers";
 export const GET = withAuth(
   async (request, context, nurse) => {
     try {
-      const roomId = parseInt(context.params.roomId);
+      const { roomId } = await context.params ?? {};
+
+      const parsedRoomId = Number(roomId);
+
+      if (!Number.isInteger(parsedRoomId)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid roomId" },
+          { status: 400 }
+        );
+      }
       const db = await getDb();
 
       // Verify nurse has access to this room
@@ -45,15 +54,15 @@ export const GET = withAuth(
           roomId: rooms.id,
           roomNumber: rooms.roomNumber,
           roomType: rooms.roomType,
-          
+
           wingId: hospitalWings.id,
           wingName: hospitalWings.wingName,
-          
+
           sessionId: patientSessions.id,
           sessionStatus: patientSessions.status,
           sessionStartDate: patientSessions.startDate,
           sessionEndDate: patientSessions.endDate,
-          
+
           patientId: users.id,
           patientName: users.name,
           patientMobile: users.mobileNumber,
@@ -129,11 +138,9 @@ export const GET = withAuth(
 
       // Separate guests by status
       const activeGuests = allGuests.filter(
-        g => g.status === "approved" && g.isActive
+        (g) => g.status === "approved" && g.isActive
       );
-      const guestsInside = guestVisitLogs.filter(
-        log => log.currentlyInside
-      );
+      const guestsInside = guestVisitLogs.filter((log) => log.currentlyInside);
 
       return NextResponse.json({
         success: true,
