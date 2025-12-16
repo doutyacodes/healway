@@ -121,6 +121,8 @@ export const POST = withAuth(
           qrScanLimit: guests.qrScanLimit,
           qrScansUsed: guests.qrScansUsed,
           qrExpiresAt: guests.qrExpiresAt,
+          visitingFrom: guests.visitingFrom,
+          visitingTo: guests.visitingTo,
 
           // Session info
           sessionId: patientSessions.id,
@@ -165,6 +167,13 @@ export const POST = withAuth(
           { status: 404 }
         );
       }
+
+      console.log("Guest visiting hours from database:", {
+        visitingFrom: guestDetails.visitingFrom,
+        visitingTo: guestDetails.visitingTo,
+        guestId: guestDetails.guestId,
+        guestName: guestDetails.guestName
+      });
 
       // Validation checks
       const validations = {
@@ -224,6 +233,18 @@ export const POST = withAuth(
           )
         );
 
+      console.log("Visiting hours from visitingHours table:", {
+        count: visitingHoursList.length,
+        currentDay,
+        currentTimeInMinutes,
+        hours: visitingHoursList.map(vh => ({
+          startTime: vh.startTime,
+          endTime: vh.endTime,
+          dayOfWeek: vh.dayOfWeek,
+          wingId: vh.wingId
+        }))
+      });
+
       const isWithinVisitingHours = visitingHoursList.some((hours) => {
         const [startHour, startMin] = hours.startTime.split(":").map(Number);
         const [endHour, endMin] = hours.endTime.split(":").map(Number);
@@ -235,6 +256,12 @@ export const POST = withAuth(
           currentTimeInMinutes >= startTimeInMinutes &&
           currentTimeInMinutes <= endTimeInMinutes
         );
+      });
+
+      console.log("Visiting hours validation:", {
+        isWithinVisitingHours,
+        isCurrentlyInside,
+        currentTimeInMinutes
       });
 
       // Determine access decision
@@ -267,6 +294,12 @@ export const POST = withAuth(
           : "Access granted - within visiting hours";
       }
 
+      console.log("Access decision:", {
+        accessGranted,
+        accessReason,
+        denialReason
+      });
+
       // Prepare response
       const response = {
         success: true,
@@ -289,6 +322,8 @@ export const POST = withAuth(
           status: guestDetails.status,
           scansUsed: guestDetails.qrScansUsed,
           scanLimit: guestDetails.qrScanLimit,
+          visitingFrom: guestDetails.visitingFrom,
+          visitingTo: guestDetails.visitingTo,
         },
         patient: {
           id: guestDetails.patientUserId,
