@@ -21,24 +21,36 @@ export const GET = withAuth(
       const db = await getDb();
       const currentTime = new Date();
 
-      console.log("Fetching dashboard for nurse:", nurse.id, "Section:", nurse.sectionId);
+      console.log("Fetching dashboard for nurse:", nurse.id, "Section:", nurse.sectionId, "Hospital:", nurse.hospitalId);
 
-      // First, get rooms in nurse's section
+      // ✅ FIXED: Get rooms in nurse's section AND hospital
       const sectionRoomIds = await db
-        .select({ roomId: nursingSectionRooms.roomId })
+        .select({ 
+          roomId: nursingSectionRooms.roomId,
+          wingId: rooms.wingId,
+        })
         .from(nursingSectionRooms)
-        .where(eq(nursingSectionRooms.sectionId, nurse.sectionId));
+        .innerJoin(rooms, eq(nursingSectionRooms.roomId, rooms.id))
+        .innerJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
+        .where(
+          and(
+            eq(nursingSectionRooms.sectionId, nurse.sectionId),
+            eq(hospitalWings.hospitalId, nurse.hospitalId) // ✅ Hospital validation
+          )
+        );
 
       console.log("Section rooms found:", sectionRoomIds.length);
 
-      // Get patients directly assigned to this nurse
+      // ✅ FIXED: Get patients directly assigned to this nurse (with hospital check)
       const assignedPatientSessions = await db
         .select({ sessionId: nursePatientAssignments.sessionId })
         .from(nursePatientAssignments)
+        .innerJoin(patientSessions, eq(nursePatientAssignments.sessionId, patientSessions.id))
         .where(
           and(
             eq(nursePatientAssignments.nurseId, nurse.id),
-            eq(nursePatientAssignments.isActive, true)
+            eq(nursePatientAssignments.isActive, true),
+            eq(patientSessions.hospitalId, nurse.hospitalId) // ✅ Hospital validation
           )
         );
 
@@ -49,7 +61,10 @@ export const GET = withAuth(
       const sessionIds = assignedPatientSessions.map(s => s.sessionId);
 
       // Build the where condition
-      const whereConditions = [eq(patientSessions.status, "active")];
+      const whereConditions = [
+        eq(patientSessions.status, "active"),
+        eq(patientSessions.hospitalId, nurse.hospitalId) // ✅ Always filter by hospital
+      ];
       
       if (roomIds.length > 0 && sessionIds.length > 0) {
         // Nurse has both section access and direct assignments
@@ -109,7 +124,7 @@ export const GET = withAuth(
         })
         .from(patientSessions)
         .innerJoin(rooms, eq(patientSessions.roomId, rooms.id))
-        .leftJoin(hospitalWings, eq(patientSessions.wingId, hospitalWings.id))
+        .innerJoin(hospitalWings, eq(patientSessions.wingId, hospitalWings.id))
         .innerJoin(users, eq(patientSessions.userId, users.id))
         .where(and(...whereConditions));
 
@@ -121,7 +136,7 @@ export const GET = withAuth(
           // Check if this patient is directly assigned to nurse
           const isDirectlyAssigned = sessionIds.includes(session.sessionId);
 
-          // Get all active guests for this session
+          // ✅ FIXED: Get all active guests for this session (with hospital check)
           const activeGuests = await db
             .select({
               guestId: guests.id,
@@ -138,12 +153,13 @@ export const GET = withAuth(
             .where(
               and(
                 eq(guests.sessionId, session.sessionId),
+                eq(guests.hospitalId, nurse.hospitalId), // ✅ Hospital validation
                 eq(guests.status, "approved"),
                 eq(guests.isActive, true)
               )
             );
 
-          // Get currently inside guests
+          // ✅ FIXED: Get currently inside guests (with hospital check)
           const guestsInside = await db
             .select({
               guestId: guestLogs.guestId,
@@ -155,6 +171,7 @@ export const GET = withAuth(
             .where(
               and(
                 eq(guestLogs.sessionId, session.sessionId),
+                eq(guests.hospitalId, nurse.hospitalId), // ✅ Hospital validation
                 eq(guestLogs.currentlyInside, true)
               )
             );
