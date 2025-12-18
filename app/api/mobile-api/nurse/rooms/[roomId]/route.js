@@ -9,6 +9,7 @@ import {
   guestLogs,
   hospitalWings,
   nursingSectionRooms,
+  nursingSections,
 } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { withAuth } from "@/lib/api-helpers";
@@ -27,16 +28,25 @@ export const GET = withAuth(
           { status: 400 }
         );
       }
+
       const db = await getDb();
 
-      // Verify nurse has access to this room
+      // ✅ FIXED: Verify nurse has access to this room in THEIR hospital
       const [roomAccess] = await db
-        .select()
+        .select({
+          roomId: nursingSectionRooms.roomId,
+          sectionId: nursingSectionRooms.sectionId,
+          wingId: rooms.wingId,
+          wingHospitalId: hospitalWings.hospitalId,
+        })
         .from(nursingSectionRooms)
+        .innerJoin(rooms, eq(nursingSectionRooms.roomId, rooms.id))
+        .innerJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
         .where(
           and(
-            eq(nursingSectionRooms.roomId, roomId),
-            eq(nursingSectionRooms.sectionId, nurse.sectionId)
+            eq(nursingSectionRooms.roomId, parsedRoomId),
+            eq(nursingSectionRooms.sectionId, nurse.sectionId),
+            eq(hospitalWings.hospitalId, nurse.hospitalId) // ✅ Hospital validation
           )
         )
         .limit(1);
@@ -69,7 +79,7 @@ export const GET = withAuth(
           patientRole: users.role,
         })
         .from(rooms)
-        .leftJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
+        .innerJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
         .leftJoin(
           patientSessions,
           and(
@@ -78,7 +88,12 @@ export const GET = withAuth(
           )
         )
         .leftJoin(users, eq(patientSessions.userId, users.id))
-        .where(eq(rooms.id, roomId))
+        .where(
+          and(
+            eq(rooms.id, parsedRoomId),
+            eq(hospitalWings.hospitalId, nurse.hospitalId) // ✅ Double-check hospital
+          )
+        )
         .limit(1);
 
       if (!roomDetails) {
@@ -98,7 +113,7 @@ export const GET = withAuth(
         });
       }
 
-      // Get all guests for this session
+      // Get all guests for this session (with hospital validation)
       const allGuests = await db
         .select({
           guestId: guests.id,
@@ -114,10 +129,15 @@ export const GET = withAuth(
           isActive: guests.isActive,
         })
         .from(guests)
-        .where(eq(guests.sessionId, roomDetails.sessionId))
+        .where(
+          and(
+            eq(guests.sessionId, roomDetails.sessionId),
+            eq(guests.hospitalId, nurse.hospitalId) // ✅ Ensure guests are from nurse's hospital
+          )
+        )
         .orderBy(desc(guests.createdAt));
 
-      // Get guest logs (visit history)
+      // Get guest logs (visit history) with hospital validation
       const guestVisitLogs = await db
         .select({
           logId: guestLogs.id,
@@ -131,8 +151,13 @@ export const GET = withAuth(
           notes: guestLogs.notes,
         })
         .from(guestLogs)
-        .leftJoin(guests, eq(guestLogs.guestId, guests.id))
-        .where(eq(guestLogs.sessionId, roomDetails.sessionId))
+        .innerJoin(guests, eq(guestLogs.guestId, guests.id))
+        .where(
+          and(
+            eq(guestLogs.sessionId, roomDetails.sessionId),
+            eq(guests.hospitalId, nurse.hospitalId) // ✅ Ensure logs are from nurse's hospital
+          )
+        )
         .orderBy(desc(guestLogs.entryTime))
         .limit(20);
 
