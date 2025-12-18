@@ -21,11 +21,18 @@ export const GET = withAuth(
 
       const db = await getDb();
 
-      // Get rooms in nurse's section
+      // ✅ FIXED: Get rooms in nurse's section AND hospital
       const sectionRoomIds = await db
         .select({ roomId: nursingSectionRooms.roomId })
         .from(nursingSectionRooms)
-        .where(eq(nursingSectionRooms.sectionId, nurse.sectionId));
+        .innerJoin(rooms, eq(nursingSectionRooms.roomId, rooms.id))
+        .innerJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
+        .where(
+          and(
+            eq(nursingSectionRooms.sectionId, nurse.sectionId),
+            eq(hospitalWings.hospitalId, nurse.hospitalId) // ✅ Hospital validation
+          )
+        );
 
       const roomIds = sectionRoomIds.map(r => r.roomId);
 
@@ -38,7 +45,7 @@ export const GET = withAuth(
         });
       }
 
-      // Get all rooms with session info
+      // ✅ FIXED: Get all rooms with session info (with hospital validation)
       const allRooms = await db
         .select({
           roomId: rooms.id,
@@ -57,32 +64,36 @@ export const GET = withAuth(
           patientMobile: users.mobileNumber,
         })
         .from(rooms)
-        .leftJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id))
+        .innerJoin(hospitalWings, eq(rooms.wingId, hospitalWings.id)) // ✅ Changed to innerJoin
         .leftJoin(
           patientSessions,
           and(
             eq(patientSessions.roomId, rooms.id),
-            eq(patientSessions.status, "active")
+            eq(patientSessions.status, "active"),
+            eq(patientSessions.hospitalId, nurse.hospitalId) // ✅ Hospital validation
           )
         )
         .leftJoin(users, eq(patientSessions.userId, users.id))
         .where(
           and(
             sql`${rooms.id} IN (${sql.join(roomIds, sql`, `)})`,
+            eq(hospitalWings.hospitalId, nurse.hospitalId), // ✅ Double-check hospital
             eq(rooms.isActive, true),
             isNull(rooms.deletedAt)
           )
         );
 
-      // Check which patients are assigned to this nurse
+      // ✅ FIXED: Check which patients are assigned to this nurse (with hospital validation)
       if (filter === "assigned-to-me") {
         const assignedSessionIds = await db
           .select({ sessionId: nursePatientAssignments.sessionId })
           .from(nursePatientAssignments)
+          .innerJoin(patientSessions, eq(nursePatientAssignments.sessionId, patientSessions.id))
           .where(
             and(
               eq(nursePatientAssignments.nurseId, nurse.id),
-              eq(nursePatientAssignments.isActive, true)
+              eq(nursePatientAssignments.isActive, true),
+              eq(patientSessions.hospitalId, nurse.hospitalId) // ✅ Hospital validation
             )
           );
 
